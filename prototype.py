@@ -1,20 +1,13 @@
-import cv2
+from cv2 import cv2
 import numpy as np
-import bezier
 import math
-from skimage.transform import (hough_line, hough_line_peaks,
-                               probabilistic_hough_line)
-from skimage.feature import canny
-from skimage import data, restoration
 from scipy import signal
-
-import matplotlib.pyplot as plt
 
 grid_size = (1, 5)
 
-join_threshold = 0.1
+join_threshold = 0.3
 
-img = cv2.imread("test_sequence.png")
+img = cv2.imread("test_sequence2.png")
 
 def get_color_codes(img):
     return (img[..., 0]/32).astype(int) * 100 + (img[..., 1]/32).astype(int) * 10 + (img[..., 2]/32).astype(int)
@@ -64,6 +57,8 @@ def gen_bones(img, grid_size):
 
     disp = (int(dims[0]/grid_size[0]), int(dims[1]/grid_size[1]))
 
+    area = disp[0]*disp[1]
+
     col_codes = get_color_codes(img)
 
     unique_vals = np.unique(col_codes).tolist()
@@ -98,28 +93,29 @@ def gen_bones(img, grid_size):
 
                 x1, y1, x2, y2, edge = detect_line(cropped_codes, unique_vals[v])
 
-                if x1 < x2:
-                    x1, x2, y1, y2 = (x2, x1, y2, y1)
-                elif x1 == x2 and y1 < y2:
+                if math.pow(x1 - disp[0]/2, 2) + math.pow(y1 - disp[1]/2, 2) < math.pow(x2 - disp[0]/2, 2) + math.pow(y2 - disp[1]/2, 2):
                     x1, x2, y1, y2 = (x2, x1, y2, y1)
 
                 frame[str(unique_vals[v])]  = [x1, y1, x2, y2]
 
-            frame_tree = {}
             root_nodes = {}
             for v in range(len(unique_vals)):
-                key = str(unique_vals)
+                key = str(unique_vals[v])
 
                 if not key in frame:
                     continue
 
                 for v2 in range(len(unique_vals)):
-                    key2 = str(unique_vals)
+                    key2 = str(unique_vals[v2])
 
                     if not key2 in frame:
                         continue
 
                     n1 = frame[key]
+
+                    # if n1[2] - disp[0] < n1[0] - disp[0] or (n1[2] == n1[0] and n1[3] - disp[1] < n1[1] - disp):
+                    #     n1[0], n1[1], n1[2], n1[3] = n1[2], n1[3], n1[0], n1[1]
+
                     n2 = frame[key2]
                     node1 = None
                     node2 = None
@@ -127,120 +123,166 @@ def gen_bones(img, grid_size):
                     if key in root_nodes:
                         node1 = root_nodes[key]
                     else:
-                        x1, y1, x2, y2 = node1
+                        x1, y1, x2, y2 = n1
                         node1 = [None, x1, y1, x2, y2, (math.pow(x1-x2,2)+math.pow(y1-y2,2)), []]
                         root_nodes[key] = node1
 
                     if key2 in root_nodes:
                         node2 = root_nodes[key2]
                     else:
-                        x1, y1, x2, y2 = node1
+                        x1, y1, x2, y2 = n2
                         node2 = [None, x1, y1, x2, y2, (math.pow(x1-x2,2)+math.pow(y1-y2,2)), []]
                         root_nodes[key2] = node2
 
-
-                    if math.pow(n1[0] - n2[0], 2) + math.pow(n1[1] - n2[1], 2) < join_threshold:
-                        if v < v2 : # v is parent node
+                    if v < v2 :
+                        if (math.pow(n1[0] - n2[0], 2) + math.pow(n1[1] - n2[1], 2))/area < join_threshold:
                             node1[6].append(node2)
                             node2[0] = node1
-                        else:
-                            node2[6].append(node1)
-                            node1[0] = node2
 
-                    elif math.pow(n1[0] - n2[3], 2) + math.pow(n1[1] - n2[4], 2) < join_threshold:
-                        if v < v2 : # v is parent node
-                            n2[1], n2[2], n2[3], n2[4] = n2[3], n2[4], n2[1], n2[2]
+                        elif math.pow(n1[0] - n2[2], 2) + math.pow(n1[1] - n2[3], 2)/area < join_threshold:
+                            node2[1], node2[2], node2[3], node2[4] = node2[3], node2[4], node2[1], node2[2]
+
                             node1[6].append(node2)
                             node2[0] = node1
-                        else:
-                            n1[1], n1[2], n1[3], n1[4] = n1[3], n1[4], n1[1], n1[2]
 
-                            node2[6].append(node1)
-                            node1[0] = node2
+                        elif math.pow(n1[2] - n2[2], 2) + math.pow(n1[3] - n2[3], 2)/area < join_threshold:
+                            node2[1], node2[2], node2[3], node2[4] = node2[3], node2[4], node2[1], node2[2]
 
-            for n in root_nodes.keys():
+                            node1[6].append(node2)
+                            node2[0] = node1
+
+                        elif math.pow(n1[2] - n2[0], 2) + math.pow(n1[3] - n2[0], 2)/area < join_threshold:
+                            node1[6].append(node2)
+                            node2[0] = node1
+
+            removals = []
+
+            for n_key in root_nodes.keys():
+                n = root_nodes[n_key]
                 if n[0] != None:
+                    #
+                    # dx, dy = (n[1] - n[3]), (n[2]-n[4])
+                    #
+                    # n1 = n[1:5]
+                    # n2 = n[0][1:5]
+                    #
+                    # if (math.pow(n1[0] - n2[0], 2) + math.pow(n1[1] - n2[1], 2))/area < join_threshold:
+                    #     n[1], n[2] = n[0][1], n[0][2]
+                    # elif math.pow(n1[0] - n2[2], 2) + math.pow(n1[1] - n2[3], 2)/area < join_threshold:
+                    #     n[1], n[2] = n[0][3], n[0][4]
+                    #
+                    # n[3], n[4] = n[1] + dx, n[2] + dy
 
-                    dx, dy = (n[1] - n[3]), (n[2]-n[4])
+                    removals.append(n_key)
 
-                    n[1], n[2] = n[0][3], n[0][4]
-                    n[3], n[4] = n[1] + dx, n[2] + dy
+            # for removal in removals:
+            #     root_nodes.pop(removal)
 
-                    root_nodes.pop(n)
+            root_nodes_list = []
 
-            bones[anim].append(root_nodes)
+            for rn in root_nodes.values():
+                root_nodes_list.append(rn)
 
-        #bones[anim].append(bones[anim][0])
+            bones[anim].append(root_nodes_list)
             imgs[anim].append(imgs[anim][0])
 
     return bones, unique_vals
+dims = img.shape[:2]
 
+size = (int(dims[0]/grid_size[0]), int(dims[1]/grid_size[1]))
 
 def interpolate(bones, animation, progress, color_codes):
-    anim = bones[animation][1:5]
+    global disp
+    progress = progress - int(progress)
+
+    anim = bones[animation]
 
     length = len(anim)
 
     frame_prog = progress * length
-
+    area = size[0]*size[1]
     disp = 1/length
 
     i1 = int(frame_prog)
-    i2 = int(math.ceil(frame_prog))
+    i2 = int(math.ceil(frame_prog)) % length
     points = []
 
-    nodes = next(iter(bones.values()))
+    nodes = []
+
+    nodes.append([anim[i1], anim[i2]])
+
+    anim_prog = (progress- i1*disp) / disp
+
     while len(nodes) > 0:
         node = nodes.pop(0)
-
         if node is None:
             continue
 
-        lines = []
+        f1 = node[0]
+        f2 = node[1]
+        for f in range(len(f1)):
 
-        if i1 != i2:
-            anim_prog = (progress- i1*disp) / disp
+            frame1 = f1[f]
+            frame2 = f2[f]
+
+            # if frame1[0] != None:
+            #     n = frame1
+            #     dx, dy = (n[1] - n[3]), (n[2]-n[4])
+            #     n1 = n[1:5]
+            #     n2 = n[0][1:5]
+            #
+            #     if (math.pow(n1[0] - n2[0], 2) + math.pow(n1[1] - n2[1], 2))/area < join_threshold:
+            #         n[1], n[2] = n[0][1], n[0][2]
+            #     elif math.pow(n1[0] - n2[2], 2) + math.pow(n1[1] - n2[3], 2)/area < join_threshold:
+            #         n[1], n[2] = n[0][3], n[0][4]
+            #
+            #     n[3], n[4] = n[1] + dx, n[2] + dy
+            # if frame2[0] != None:
+            #     n = frame2
+            #     dx, dy = (n[1] - n[3]), (n[2]-n[4])
+            #
+            #     n1 = n[1:5]
+            #     n2 = n[0][1:5]
+            #
+            #     if (math.pow(n1[0] - n2[0], 2) + math.pow(n1[1] - n2[1], 2))/area < join_threshold:
+            #         n[1], n[2] = n[0][1], n[0][2]
+            #     elif math.pow(n1[0] - n2[2], 2) + math.pow(n1[1] - n2[3], 2)/area < join_threshold:
+            #         n[1], n[2] = n[0][3], n[0][4]
+            #
+            #     n[3], n[4] = n[1] + dx, n[2] + dy
+
+            lines = []
 
             for i in range(4):
-                lines.append(int(node[i+1] * (1-anim_prog) + node[i+1] * anim_prog))
-
-            for n in node[6]:
-                nodes.append(n)
+                lines.append(int(frame1[i+1] * (1-anim_prog) + frame2[i+1] * anim_prog))
 
             points.append(lines)
-        else:
 
-            for i in range(4):
-                lines.append(int(node[i+1]))
+            # for n in range(len(frame1[6])):
+            #     if len(frame2[6]) <= n:
+            #         break
+            #     nodes.append([frame1[6][n], frame2[6][n]])
 
-                points.append(lines)
-        for n in node[6]:
-            nodes.append(n)
     return points
-
-
-
-
 
 bones, cols = gen_bones(img, grid_size)
 
-dims = img.shape[:2]
 
-disp = (int(dims[0]/grid_size[0]), int(dims[1]/grid_size[1]))
 
 frs = 24
 
 for i in range(frs):
     progress = i/frs
     points = interpolate(bones, "spin", progress, cols)
-    im = np.zeros([disp[0], disp[1]])  + 255
+    im = np.zeros([size[0], size[1]])  + 255
     for pi in range(len(points)):
         p = points[pi]
         p1 = int(p[0]),int(p[1])
         p2 = int(p[2]),int(p[3])
         cv2.line(im,(p1[0],p1[1]),(p2[0],p2[1]),(0,0,0),2)
+    cv2.imwrite('imgs/' + str(i) + '.png',im)
 
     cv2.imshow('image',im)
-    cv2.waitKey(0)
+    cv2.waitKey(100)
 
 cv2.destroyAllWindows()
