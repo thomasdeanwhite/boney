@@ -109,8 +109,16 @@ def gen_bones(img, grid_size):
             root_nodes = {}
             for v in range(len(unique_vals)):
                 key = str(unique_vals)
+
+                if not key in frame:
+                    continue
+
                 for v2 in range(len(unique_vals)):
                     key2 = str(unique_vals)
+
+                    if not key2 in frame:
+                        continue
+
                     n1 = frame[key]
                     n2 = frame[key2]
                     node1 = None
@@ -160,14 +168,6 @@ def gen_bones(img, grid_size):
 
                     root_nodes.pop(n)
 
-
-
-
-
-
-
-
-
             bones[anim].append(root_nodes)
 
         #bones[anim].append(bones[anim][0])
@@ -181,27 +181,43 @@ def interpolate(bones, animation, progress, color_codes):
 
     length = len(anim)
 
-    disp = 1 / length
+    frame_prog = progress * length
 
+    disp = 1/length
+
+    i1 = int(frame_prog)
+    i2 = int(math.ceil(frame_prog))
     points = []
 
-    for c in range(len(color_codes)):
-        key = str(color_codes[c])
+    nodes = next(iter(bones.values()))
+    while len(nodes) > 0:
+        node = nodes.pop(0)
 
-        i = 1 + (progress * (len(anim[key])-1))
-        frame = int(i)
-
-        low_lim = ((frame-1)*disp)
-
-        anim_prog = (progress - low_lim) / (disp*2)
+        if node is None:
+            continue
 
         lines = []
-        curve_p1, curve_p2 = get_curve(anim[key][frame-1:frame+1])
 
-        point = np.append(curve_p1.evaluate(progress),(curve_p2.evaluate(progress)))
+        if i1 != i2:
+            anim_prog = (progress- i1*disp) / disp
 
-        points.append(point)
+            for i in range(4):
+                lines.append(int(node[i+1] * (1-anim_prog) + node[i+1] * anim_prog))
+
+            for n in node[6]:
+                nodes.append(n)
+
+            points.append(lines)
+        else:
+
+            for i in range(4):
+                lines.append(int(node[i+1]))
+
+                points.append(lines)
+        for n in node[6]:
+            nodes.append(n)
     return points
+
 
 
 
