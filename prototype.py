@@ -25,13 +25,13 @@ def detect_line(img_color_codes, value):
 
     lines = cv2.HoughLinesP(im,1,np.pi/180, 10, 1, 10)
 
+    if lines is None:
+        return 0, 0, 0, 0, im
+
     min_x, min_y = img_color_codes.shape[:2]
     max_x, max_y = (0, 0)
 
     line_count = len(lines)
-
-    print(line_count)
-
     longest_line = [0, 0, 0, 0]
     line_length = 0
 
@@ -45,7 +45,7 @@ def detect_line(img_color_codes, value):
 
     return longest_line[0], longest_line[1], longest_line[2], longest_line[3], im
 
-    return 0, 0, 0, 0, im
+
 
 def gen_bones(img, grid_size):
 
