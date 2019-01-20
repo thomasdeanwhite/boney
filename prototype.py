@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-
+import bezier
 import math
 from skimage.transform import (hough_line, hough_line_peaks,
                                probabilistic_hough_line)
@@ -12,10 +12,12 @@ import matplotlib.pyplot as plt
 
 grid_size = (1, 5)
 
+join_threshold = 0.1
+
 img = cv2.imread("test_sequence.png")
 
 def get_color_codes(img):
-    return (img[..., 0]/32).astype(int) * 1000000 + (img[..., 1]/32).astype(int) * 1000 + (img[..., 2]/32).astype(int)
+    return (img[..., 0]/32).astype(int) * 100 + (img[..., 1]/32).astype(int) * 10 + (img[..., 2]/32).astype(int)
 
 def detect_line(img_color_codes, value):
     true_vals = np.equal(img_color_codes, value).astype(int)
@@ -72,28 +74,24 @@ def gen_bones(img, grid_size):
 
     while i < len(unique_vals):
         sum = np.sum(np.equal(col_codes, unique_vals[i]).astype(int))
-        if sum < threshold or unique_vals[i] == 7007007: # white color
+        if sum < threshold or unique_vals[i] == 777: # white color
             unique_vals.pop(i)
         else:
             i += 1
 
     bones = {}
 
-
     anim = "spin"
 
     for j in range(grid_size[0]):
 
-
         imgs[anim] = []
 
         bones[anim] = []
-
         for i in range(grid_size[1]):
             cropped = img[j*disp[1]:(j+1)*disp[1], i*disp[0]:(i+1)*disp[0]]
             cropped_codes = col_codes[j*disp[1]:(j+1)*disp[1], i*disp[0]:(i+1)*disp[0]]
             imgs[anim].append(cropped)
-
             frame = {}
 
             for v in range(len(unique_vals)):
@@ -105,48 +103,104 @@ def gen_bones(img, grid_size):
                 elif x1 == x2 and y1 < y2:
                     x1, x2, y1, y2 = (x2, x1, y2, y1)
 
-                frame[str(unique_vals[v])] = [x1, y1, x2, y2]
+                frame[str(unique_vals[v])]  = [x1, y1, x2, y2]
 
-            bones[anim].append(frame)
+            frame_tree = {}
+            root_nodes = {}
+            for v in range(len(unique_vals)):
+                key = str(unique_vals)
+                for v2 in range(len(unique_vals)):
+                    key2 = str(unique_vals)
+                    n1 = frame[key]
+                    n2 = frame[key2]
+                    node1 = None
+                    node2 = None
 
-        bones[anim].append(bones[anim][0])
-        imgs[anim].append(imgs[anim][0])
+                    if key in root_nodes:
+                        node1 = root_nodes[key]
+                    else:
+                        x1, y1, x2, y2 = node1
+                        node1 = [None, x1, y1, x2, y2, (math.pow(x1-x2,2)+math.pow(y1-y2,2)), []]
+                        root_nodes[key] = node1
+
+                    if key2 in root_nodes:
+                        node2 = root_nodes[key2]
+                    else:
+                        x1, y1, x2, y2 = node1
+                        node2 = [None, x1, y1, x2, y2, (math.pow(x1-x2,2)+math.pow(y1-y2,2)), []]
+                        root_nodes[key2] = node2
+
+
+                    if math.pow(n1[0] - n2[0], 2) + math.pow(n1[1] - n2[1], 2) < join_threshold:
+                        if v < v2 : # v is parent node
+                            node1[6].append(node2)
+                            node2[0] = node1
+                        else:
+                            node2[6].append(node1)
+                            node1[0] = node2
+
+                    elif math.pow(n1[0] - n2[3], 2) + math.pow(n1[1] - n2[4], 2) < join_threshold:
+                        if v < v2 : # v is parent node
+                            n2[1], n2[2], n2[3], n2[4] = n2[3], n2[4], n2[1], n2[2]
+                            node1[6].append(node2)
+                            node2[0] = node1
+                        else:
+                            n1[1], n1[2], n1[3], n1[4] = n1[3], n1[4], n1[1], n1[2]
+
+                            node2[6].append(node1)
+                            node1[0] = node2
+
+            for n in root_nodes.keys():
+                if n[0] != None:
+
+                    dx, dy = (n[1] - n[3]), (n[2]-n[4])
+
+                    n[1], n[2] = n[0][3], n[0][4]
+                    n[3], n[4] = n[1] + dx, n[2] + dy
+
+                    root_nodes.pop(n)
+
+
+
+
+
+
+
+
+
+            bones[anim].append(root_nodes)
+
+        #bones[anim].append(bones[anim][0])
+            imgs[anim].append(imgs[anim][0])
 
     return bones, unique_vals
 
+
 def interpolate(bones, animation, progress, color_codes):
-    anim = bones[animation]
+    anim = bones[animation][1:5]
 
     length = len(anim)
 
-    frame_prog = progress * length
+    disp = 1 / length
 
-    disp = 1/length
-
-    i1 = int(frame_prog)
-    i2 = int(math.ceil(frame_prog))
     points = []
 
-    if i1 != i2:
-        anim_prog = (progress- i1*disp) / disp
+    for c in range(len(color_codes)):
+        key = str(color_codes[c])
 
-        print(anim_prog)
+        i = 1 + (progress * (len(anim[key])-1))
+        frame = int(i)
 
-        for c in range(len(color_codes)):
-            key = str(color_codes[c])
-            lines = []
-            for i in range(len(anim[i1][key])):
-                lines.append(int(anim[i1][key][i] * (1-anim_prog) + anim[i2][key][i] * anim_prog))
+        low_lim = ((frame-1)*disp)
 
-            points.append(lines)
-    else:
-        for c in range(len(color_codes)):
-            key = str(color_codes[c])
-            lines = []
-            for i in range(len(anim[i1][key])):
-                lines.append(int(anim[i1][key][i]))
+        anim_prog = (progress - low_lim) / (disp*2)
 
-            points.append(lines)
+        lines = []
+        curve_p1, curve_p2 = get_curve(anim[key][frame-1:frame+1])
+
+        point = np.append(curve_p1.evaluate(progress),(curve_p2.evaluate(progress)))
+
+        points.append(point)
     return points
 
 
@@ -166,8 +220,8 @@ for i in range(frs):
     im = np.zeros([disp[0], disp[1]])  + 255
     for pi in range(len(points)):
         p = points[pi]
-        p1 = p[0],p[1]
-        p2 = p[2],p[3]
+        p1 = int(p[0]),int(p[1])
+        p2 = int(p[2]),int(p[3])
         cv2.line(im,(p1[0],p1[1]),(p2[0],p2[1]),(0,0,0),2)
 
     cv2.imshow('image',im)
