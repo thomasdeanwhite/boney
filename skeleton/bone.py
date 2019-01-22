@@ -9,6 +9,7 @@ class Bone ():
     parent = None
 
     def __init__(self, root_joint, next_joint, key):
+        # reinitialize vars here, or they are static!
         self.root_joint = root_joint
         self.next_joint = next_joint
         self.key = key
@@ -20,25 +21,34 @@ class Bone ():
         self.length = self.root_joint.distance(self.next_joint)
 
     def flip(self):
+        # rotate bone by PI rads
         self.root_joint, self.next_joint = self.next_joint, self.root_joint
-
 
     def add_child(self, bone):
         self.children.append(bone)
         bone.parent = self
 
     def normalize_children(self):
+
+        #ensure children are actually attached to this bone (recursively)
         for c in self.children:
+
+            # get line direction/magnitude
             displacement = c.next_joint - c.root_joint
 
             c.root_joint = self.next_joint
 
+            # update line pos with direction/magnitude
             c.next_joint = c.root_joint + displacement
 
+            # recursive call
             c.normalize_children()
 
     def interpolate(self, bone, progress):
 
+        # interpolate self and all children with param bone.
+        # both self and bone have to have same tree structure!
+        # TODO: Make this tree structure independent
         children = []
 
         for c in self.children:

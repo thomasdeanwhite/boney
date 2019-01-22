@@ -12,6 +12,7 @@ class Joint ():
         return math.sqrt(diff.x*diff.x + diff.y*diff.y)
 
     def snap(self, joint, threshold):
+        # returns true if self and joint are can be snapped together with param threshold
         return self.distance(joint) < threshold
 
     def interpolate(self, joint, progress):
@@ -26,6 +27,7 @@ class Joint ():
 
     def add(self, joint):
         return Joint(self.x + joint.x, self.y + joint.y)
+
     # overwrite python's methods for + and -
     def __radd__(self, other):
         return self.add(other)
