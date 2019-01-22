@@ -11,7 +11,7 @@ grid_size = (1, 5)
 
 join_threshold = 15
 
-img = cv2.imread("test_sequence2.png")
+img = cv2.imread("test_sequence.png")
 
 def get_color_codes(img):
     return (img[..., 0]/32).astype(int) * 100 + (img[..., 1]/32).astype(int) * 10 + (img[..., 2]/32).astype(int)
@@ -90,7 +90,7 @@ def gen_bones(img, grid_size):
 
                 x1, y1, x2, y2, edge = detect_line(cropped_codes, unique_vals[v])
 
-                if math.pow(x1 - disp[0]/2, 2) + math.pow(y1 - disp[1]/2, 2) < math.pow(x2 - disp[0]/2, 2) + math.pow(y2 - disp[1]/2, 2):
+                if math.pow(x1 - disp[0]/2, 2) + math.pow(y1 - disp[1]/2, 2) > math.pow(x2 - disp[0]/2, 2) + math.pow(y2 - disp[1]/2, 2):
                     x1, x2, y1, y2 = (x2, x1, y2, y1)
 
                 bones[str(unique_vals[v])] = Bone(Joint(x1, y1), Joint(x2, y2), unique_vals[v])
@@ -169,7 +169,7 @@ def interpolate(animation, progress, color_codes):
 
 animations, cols = gen_bones(img, grid_size)
 
-frs = 24
+frs = 100
 
 for i in range(frs):
     progress = i/frs
