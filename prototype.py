@@ -1,17 +1,44 @@
 from cv2 import cv2
 import numpy as np
 import math
+import sys
+import getopt
+from validate import image_validator, number_validator
 from scipy import signal
 from skeleton.skeleton import Skeleton
 from skeleton.bone import Bone
 from skeleton.joint import Joint
 
+# Command Line parameter loading
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "y:x:i:s:", ["ysize", "xsize", "image=", "speed="])
+except getopt.GetoptError as err:
+    print(err)
+    sys.exit(2)
 
-grid_size = (1, 5)
+grid_size_y = None
+grid_size_x = None
+image_file = None
+speed = None
+for o, a in opts:
+    if o == "-y":
+        grid_size_y = a
+    elif o == "-x":
+        grid_size_x = a
+    elif o in ("-i", "--image"):
+        image_file = a
+    elif o in ("-s", "--speed"):
+        speed = a
 
+grid_size_y = (number_validator.validate(grid_size_y, "Grid Height"))
+grid_size_x = (number_validator.validate(grid_size_x, "Grid Width"))
+image_file = image_validator.validate(image_file)
+speed = 100 if speed is None else (101 - int(speed))
+# End parameter loading
+
+grid_size = (grid_size_y, grid_size_x)
 join_threshold = 15
-
-img = cv2.imread("test_sequence.png")
+img = cv2.imread(image_file)
 
 def get_color_codes(img):
     return (img[..., 0]/32).astype(int) * 100 + (img[..., 1]/32).astype(int) * 10 + (img[..., 2]/32).astype(int)
@@ -187,7 +214,7 @@ for i in range(frs):
             cv2.line(im,(p1[0],p1[1]),(p2[0],p2[1]),(0,0,0),2)
     cv2.imwrite('imgs/' + str(i) + '.png',im)
 
-    cv2.imshow('image',im)
-    cv2.waitKey(100)
+    cv2.imshow('image', im)
+    cv2.waitKey(speed)
 
 cv2.destroyAllWindows()
