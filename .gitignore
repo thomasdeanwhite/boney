@@ -8,3 +8,4 @@
 imgs
 __pycache__
 htmlcov
+.coverage

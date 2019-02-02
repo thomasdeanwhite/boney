@@ -34,7 +34,7 @@ class TestBoneMethods(unittest.TestCase):
         bone.normalize_children()
 
         self.assertAlmostEqual(1, bone.children[0].next_joint.x)
-        self.assertAlmostEqual(0, bone.children[0].next_joint.y)
+        self.assertAlmostEqual(1, bone.children[0].next_joint.y)
 
 if __name__ == '__main__':
     unittest.main()
