@@ -1,6 +1,3 @@
-from skeleton.bone import Bone
-
-
 class Skeleton ():
     root_nodes = []
 

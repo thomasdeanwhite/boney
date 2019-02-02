@@ -5,9 +5,9 @@ import sys
 import getopt
 from validate import image_validator, number_validator
 from scipy import signal
-from skeleton.skeleton import Skeleton
-from skeleton.bone import Bone
-from skeleton.joint import Joint
+from src.main.boney.skeleton.skeleton import Skeleton
+from src.main.boney.skeleton import Bone
+from src.main.boney.skeleton.joint import Joint
 
 # Command Line parameter loading
 try:

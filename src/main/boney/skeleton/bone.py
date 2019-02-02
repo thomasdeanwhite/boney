@@ -1,12 +1,12 @@
-from skeleton.joint import Joint
-
 class Bone ():
     root_joint = None
     next_joint = None
     key = None
     children = []
-    length = 0
+    __length = -1
     parent = None
+
+    is_rigid = True
 
     def __init__(self, root_joint, next_joint, key):
         # reinitialize vars here, or they are static!
@@ -17,8 +17,13 @@ class Bone ():
         self.length = 0
         self.parent = None
 
-    def calculate_length (self):
-        self.length = self.root_joint.distance(self.next_joint)
+    def __calculate_length__(self):
+        self.__length = self.root_joint.distance(self.next_joint)
+
+    def get_length(self):
+        if self.__length == -1:
+            self.__calculate_length__()
+        return self.__length
 
     def flip(self):
         # rotate bone by PI rads
@@ -27,6 +32,10 @@ class Bone ():
     def add_child(self, bone):
         self.children.append(bone)
         bone.parent = self
+
+    def stretch(self, factor):
+        disp = self.next_joint - self.root_joint
+        self.next_joint = self.root_joint + disp.scale(factor)
 
     def normalize_children(self):
 
@@ -60,6 +69,14 @@ class Bone ():
         next_joint = self.next_joint.interpolate(bone.next_joint, progress)
 
         interpolated_bone = Bone(root_joint, next_joint, self.key)
+
+        if self.is_rigid:
+            length = self.get_length() * (1-progress)
+            length += bone.get_length() * (progress)
+
+            # stretch the bone to the length of the bones either side of the keyframe
+            # to keep it rigid
+            interpolated_bone.stretch(length/interpolated_bone.get_length())
 
         for c in children:
             interpolated_bone.add_child(c)
