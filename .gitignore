@@ -1,4 +1,11 @@
 *.idea
-*.iml
-*.psd
-*~
+**.iml
+**.psd
+**~
+**.pyc
+**.pyo
+**pycache*
+imgs
+__pycache__
+htmlcov
+.coverage
